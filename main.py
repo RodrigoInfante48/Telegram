@@ -220,12 +220,20 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 # Main
 # ---------------------------------------------------------------------------
 
+async def post_init(application) -> None:
+    webhook_info = await application.bot.get_webhook_info()
+    if webhook_info.url:
+        logger.info("Webhook activo detectado: %s — eliminando...", webhook_info.url)
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Webhook eliminado. Bot listo para polling.")
+
+
 def main() -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
 
-    app = ApplicationBuilder().token(token).build()
+    app = ApplicationBuilder().token(token).post_init(post_init).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", info_trigger)],
