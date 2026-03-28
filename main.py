@@ -90,6 +90,23 @@ OPTION_LABELS = {
     "support": "Soporte / Consultas",
 }
 
+BUTTON_RESPONSES = {
+    "kanban_pro": (
+        "🚀 *KanbanPRO — Free Trial*\n\n"
+        "Gracias por proporcionar la información, en breve recibirás un correo con los detalles. 📩"
+    ),
+    "gifts": (
+        "🎁 *Mis Regalos*\n\n"
+        "Aquí tienes tu regalo exclusivo 👇\n"
+        "https://azure-ferry-3c3.notion.site/High-Intensity-Training-HIT-2694f515cfb080778403e01c6ba843d4"
+    ),
+    "support": (
+        "🛠 *Soporte / Consultas*\n\n"
+        "Encuentra respuestas a las preguntas más frecuentes aquí 👇\n"
+        "https://azure-ferry-3c3.notion.site/PREGUNTAS-FRECUENTES-15e4f515cfb080b0b635d0779fab3673"
+    ),
+}
+
 
 def build_main_menu() -> InlineKeyboardMarkup:
     keyboard = [
@@ -104,24 +121,56 @@ def build_main_menu() -> InlineKeyboardMarkup:
 # Handlers
 # ---------------------------------------------------------------------------
 
-async def info_trigger(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Triggered when user sends 'info.'"""
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show the main menu immediately on /start."""
     welcome = (
         "¡Hola! 👋 Bienvenido/a.\n\n"
-        "Para enviarte todo, necesito:\n\n"
-        "👤 Nombre\n"
-        "📧 Email\n"
-        "📱 Celular (ej: +52 55 1234 5678)\n\n"
-        "Escríbelos aquí 👇"
+        "¿Qué te gustaría explorar? 👇"
     )
-    await update.message.reply_text(welcome, parse_mode="Markdown")
-    return WAITING_FOR_CONTACT
+    await update.message.reply_text(welcome, reply_markup=build_main_menu())
+    return ConversationHandler.END
+
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle inline button presses. Asks for contact info if not yet collected."""
+    query = update.callback_query
+    await query.answer()
+
+    if not context.user_data.get("airtable_record_id"):
+        # No contact info yet — save which button was pressed and ask for info
+        context.user_data["pending_option"] = query.data
+        await query.edit_message_text(
+            "Para enviarte todo, necesito:\n\n"
+            "👤 Nombre\n"
+            "📧 Email\n"
+            "📱 Celular (ej: +52 55 1234 5678)\n\n"
+            "Escríbelos aquí 👇",
+            parse_mode="Markdown",
+        )
+        return WAITING_FOR_CONTACT
+
+    # Already have contact info — update option and show response
+    record_id = context.user_data["airtable_record_id"]
+    label = OPTION_LABELS.get(query.data)
+    if label:
+        try:
+            airtable_table.update(record_id, {"option selected": label})
+            logger.info("Opción guardada en Airtable: %s -> %s", record_id, label)
+        except Exception as exc:
+            logger.error("Error guardando opción en Airtable: %s", exc)
+
+    response_text = BUTTON_RESPONSES.get(query.data, "Opción no reconocida.")
+    await query.edit_message_text(
+        response_text,
+        parse_mode="Markdown",
+        reply_markup=build_main_menu(),
+    )
+    return ConversationHandler.END
 
 
 async def receive_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Extracts name + email via Claude and saves to Airtable."""
+    """Extracts name + email via Claude, saves to Airtable, then shows response."""
     user_message = update.message.text
-    username = update.effective_user.username
 
     await update.message.reply_text("⏳ Un momento, procesando tu información...")
 
@@ -152,13 +201,27 @@ async def receive_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return WAITING_FOR_CONTACT
 
+    # Update Airtable with the option that triggered the contact request
+    pending_option = context.user_data.pop("pending_option", None)
+    label = OPTION_LABELS.get(pending_option) if pending_option else None
+    if record_id and label:
+        try:
+            airtable_table.update(record_id, {"option selected": label})
+        except Exception as exc:
+            logger.error("Error guardando opción en Airtable: %s", exc)
+
     phone_line = f"📱 Celular: *{phone}*\n" if phone else ""
     confirmation = (
         f"¡Perfecto, *{name}*! 🎉\n\n"
         f"📧 Email: *{email}*\n"
-        f"{phone_line}"
-        "\nTodo registrado correctamente. ¿Qué te gustaría explorar primero? 👇"
+        f"{phone_line}\n"
     )
+
+    if pending_option and pending_option in BUTTON_RESPONSES:
+        confirmation += BUTTON_RESPONSES[pending_option]
+    else:
+        confirmation += "Todo registrado. ¿Qué te gustaría explorar? 👇"
+
     await update.message.reply_text(
         confirmation,
         parse_mode="Markdown",
@@ -168,56 +231,14 @@ async def receive_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Conversación cancelada. Escribe *info.* cuando quieras empezar de nuevo.", parse_mode="Markdown")
+    await update.message.reply_text(
+        "Conversación cancelada. Escribe /start para comenzar de nuevo."
+    )
     return ConversationHandler.END
 
 
 # ---------------------------------------------------------------------------
-# Inline button callbacks
-# ---------------------------------------------------------------------------
-
-BUTTON_RESPONSES = {
-    "kanban_pro": (
-        "🚀 *KanbanPRO — Free Trial*\n\n"
-        "Gracias por proporcionar la información, en breve recibirás un correo con los detalles. 📩"
-    ),
-    "gifts": (
-        "🎁 *Mis Regalos*\n\n"
-        "Aquí tienes tu regalo exclusivo 👇\n"
-        "https://azure-ferry-3c3.notion.site/High-Intensity-Training-HIT-2694f515cfb080778403e01c6ba843d4"
-    ),
-    "support": (
-        "🛠 *Soporte / Consultas*\n\n"
-        "Encuentra respuestas a las preguntas más frecuentes aquí 👇\n"
-        "https://azure-ferry-3c3.notion.site/PREGUNTAS-FRECUENTES-15e4f515cfb080b0b635d0779fab3673"
-    ),
-}
-
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-
-    # Update Airtable record with selected option
-    record_id = context.user_data.get("airtable_record_id")
-    label = OPTION_LABELS.get(query.data)
-    if record_id and label:
-        try:
-            airtable_table.update(record_id, {"option selected": label})
-            logger.info("Opción guardada en Airtable: %s -> %s", record_id, label)
-        except Exception as exc:
-            logger.error("Error guardando opción en Airtable: %s", exc)
-
-    response_text = BUTTON_RESPONSES.get(query.data, "Opción no reconocida.")
-    await query.edit_message_text(
-        response_text,
-        parse_mode="Markdown",
-        reply_markup=build_main_menu(),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Main
+# Startup hook
 # ---------------------------------------------------------------------------
 
 async def post_init(application) -> None:
@@ -228,6 +249,10 @@ async def post_init(application) -> None:
         logger.info("Webhook eliminado. Bot listo para polling.")
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main() -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -236,10 +261,13 @@ def main() -> None:
     app = ApplicationBuilder().token(token).post_init(post_init).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", info_trigger)],
+        entry_points=[
+            CommandHandler("start", start),
+            CallbackQueryHandler(button_callback),
+        ],
         states={
             WAITING_FOR_CONTACT: [
-                CommandHandler("start", info_trigger),
+                CommandHandler("start", start),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receive_contact),
             ],
         },
@@ -248,7 +276,6 @@ def main() -> None:
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(button_callback))
 
     logger.info("Bot iniciado. Esperando mensajes...")
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
