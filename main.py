@@ -243,7 +243,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(button_callback))
 
     logger.info("Bot iniciado. Esperando mensajes...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 
 if __name__ == "__main__":
