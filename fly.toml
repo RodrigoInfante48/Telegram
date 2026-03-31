@@ -1,7 +1,7 @@
-# fly.toml app configuration file for telegram-bot-dailyduty
+# fly.toml app configuration file for telegram-bot-dailyduty48
 # Polling bot — no HTTP service needed
 
-app = 'telegram-bot-dailyduty'
+app = 'telegram-bot-dailyduty48'
 primary_region = 'iad'
 
 [build]
