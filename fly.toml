@@ -1,14 +1,23 @@
-# fly.toml — configuración para Fly.io
-app = "telegram-bot-rodrigo"
-primary_region = "mia"  # Miami, el más cercano a LATAM
+# fly.toml app configuration file generated for telegram-bot-dailyduty on 2026-03-31T03:21:02Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'telegram-bot-dailyduty'
+primary_region = 'iad'
 
 [build]
 
-[env]
-  # Las variables secretas se setean con: fly secrets set KEY=value
-  # NO pongas aquí TELEGRAM_BOT_TOKEN ni otras claves
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[vm]]
-  memory = "256mb"
-  cpu_kind = "shared"
+  memory = '1gb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 256
