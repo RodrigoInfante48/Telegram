@@ -237,6 +237,21 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+async def handle_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Called when the conversation times out due to inactivity (15 min)."""
+    context.user_data.clear()
+    if update and update.effective_chat:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=(
+                "⏰ Tu sesión expiró por inactividad.\n\n"
+                "Cuando quieras continuar, toca una opción 👇"
+            ),
+            reply_markup=build_main_menu(),
+        )
+    return ConversationHandler.END
+
+
 # ---------------------------------------------------------------------------
 # Startup hook
 # ---------------------------------------------------------------------------
@@ -270,9 +285,14 @@ def main() -> None:
                 CommandHandler("start", start),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receive_contact),
             ],
+            ConversationHandler.TIMEOUT: [
+                MessageHandler(filters.ALL, handle_timeout),
+                CallbackQueryHandler(handle_timeout),
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         allow_reentry=True,
+        conversation_timeout=900,  # 15 minutos de inactividad
     )
 
     app.add_handler(conv_handler)
