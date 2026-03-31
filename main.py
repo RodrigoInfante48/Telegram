@@ -81,7 +81,7 @@ def save_to_airtable(name: str, email: str, phone: str | None) -> str:
         fields["phone"] = phone
     record = airtable_table.create(fields)
     logger.info("Lead guardado: %s / %s / %s", name, email, phone)
-    return record["id"]
+    return record.id  # pyairtable 3.x returns a Pydantic model; use .id not ["id"]
 
 
 OPTION_LABELS = {
