@@ -195,9 +195,11 @@ async def receive_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         record_id = save_to_airtable(name, email, phone)
         context.user_data["airtable_record_id"] = record_id
     except Exception as exc:
-        logger.error("Airtable error: %s", exc)
+        error_msg = str(exc)
+        logger.error("Airtable error: %s", error_msg)
         await update.message.reply_text(
-            "Hubo un problema al guardar tus datos. Por favor intenta de nuevo."
+            f"DEBUG — Error al guardar:\n`{error_msg}`",
+            parse_mode="Markdown",
         )
         return WAITING_FOR_CONTACT
 
