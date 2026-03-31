@@ -1,0 +1,14 @@
+# fly.toml — configuración para Fly.io
+app = "telegram-bot-rodrigo"
+primary_region = "mia"  # Miami, el más cercano a LATAM
+
+[build]
+
+[env]
+  # Las variables secretas se setean con: fly secrets set KEY=value
+  # NO pongas aquí TELEGRAM_BOT_TOKEN ni otras claves
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
